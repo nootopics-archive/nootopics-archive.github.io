@@ -771,20 +771,31 @@
                 const file = files[0];
                 
                 const loader = document.getElementById('app-loader');
-                loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Decompressing archive...</div>';
+                loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Reading file...</div>';
                 await yieldToBrowser();
                 
                 try {
                     const tReadStart = performance.now();
-                    const compressedBuffer = await file.arrayBuffer();
-                    const stream = new Blob([compressedBuffer]).stream();
-                    const decompressor = new DecompressionStream('gzip');
-                    const decompressedStream = stream.pipeThrough(decompressor);
-                    const decompressedResponse = new Response(decompressedStream);
-                    const uncompressedBuffer = await decompressedResponse.arrayBuffer();
+                    const buffer = await file.arrayBuffer();
+                    
+                    // Check for gzip magic bytes: 0x1f 0x8b
+                    const header = new Uint8Array(buffer, 0, 2);
+                    const isGzipped = header[0] === 0x1f && header[1] === 0x8b;
+                    
+                    let uncompressedBuffer;
+                    if (isGzipped) {
+                        updateLoaderText("Decompressing archive...");
+                        await yieldToBrowser();
+                        
+                        const stream = new Blob([buffer]).stream();
+                        const decompressor = new DecompressionStream('gzip');
+                        uncompressedBuffer = await new Response(stream.pipeThrough(decompressor)).arrayBuffer();
+                    } else {
+                        uncompressedBuffer = buffer;
+                    }
                     
                     const tReadEnd = performance.now();
-                    console.log(`⏱️ [1/2] Read & Decompress local file: ${(tReadEnd - tReadStart).toFixed(2)}ms`);
+                    console.log(`⏱️ Read & decompress local file: ${(tReadEnd - tReadStart).toFixed(2)}ms`);
                     
                     await bootEngine(uncompressedBuffer, tReadStart);
                 } catch (err) {
@@ -793,7 +804,6 @@
                     showDragAndDropUI();
                 }
             }
-        }
 
         async function downloadLocalCopy() {
             if (window.location.protocol === 'file:') {
