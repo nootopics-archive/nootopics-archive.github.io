@@ -771,7 +771,7 @@
                 const file = files[0];
                 
                 const loader = document.getElementById('app-loader');
-                loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Reading file...</div>';
+                loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Reading archive...</div>';
                 await yieldToBrowser();
                 
                 try {
@@ -784,18 +784,19 @@
                     
                     let uncompressedBuffer;
                     if (isGzipped) {
-                        updateLoaderText("Decompressing archive...");
+                        loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Decompressing archive...</div>';
                         await yieldToBrowser();
                         
                         const stream = new Blob([buffer]).stream();
                         const decompressor = new DecompressionStream('gzip');
-                        uncompressedBuffer = await new Response(stream.pipeThrough(decompressor)).arrayBuffer();
+                        const decompressedStream = stream.pipeThrough(decompressor);
+                        uncompressedBuffer = await new Response(decompressedStream).arrayBuffer();
                     } else {
                         uncompressedBuffer = buffer;
                     }
                     
                     const tReadEnd = performance.now();
-                    console.log(`⏱️ Read & decompress local file: ${(tReadEnd - tReadStart).toFixed(2)}ms`);
+                    console.log(`⏱️ [1/2] Read & ${isGzipped ? 'Decompress' : 'Load'} local file: ${(tReadEnd - tReadStart).toFixed(2)}ms`);
                     
                     await bootEngine(uncompressedBuffer, tReadStart);
                 } catch (err) {
@@ -804,6 +805,7 @@
                     showDragAndDropUI();
                 }
             }
+        }
 
         async function downloadLocalCopy() {
             if (window.location.protocol === 'file:') {
