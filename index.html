@@ -803,16 +803,14 @@
 
             const btn = document.getElementById('download-local-btn');
             const span = btn.querySelector('span');
-            const originalText = span.textContent;
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.7';
+            span.textContent = "Downloading...";
 
             try {
-                btn.style.pointerEvents = 'none';
-                btn.style.opacity = '0.7';
-                span.textContent = "Downloading...";
-
+                // Download the HTML
                 const htmlRes = await fetch(window.location.href);
                 const htmlText = await htmlRes.text();
-                
                 const htmlBlob = new Blob([htmlText], { type: 'text/html' });
                 const htmlUrl = URL.createObjectURL(htmlBlob);
                 const aHtml = document.createElement('a');
@@ -823,24 +821,35 @@
                 document.body.removeChild(aHtml);
                 URL.revokeObjectURL(htmlUrl);
 
-                setTimeout(() => {
+                // Pull archive.bin from cache instead of re-fetching from R2
+                setTimeout(async () => {
+                    const binUrl = 'https://pub-2f7f85fcd49244eeb75f02f0bb9e8cf6.r2.dev/archive.bin';
+                    const cache = await caches.open('discord-archive-v7');
+                    const cached = await cache.match(binUrl);
+                    
+                    const response = cached 
+                        ? cached 
+                        : await fetch(binUrl); // fallback if somehow not cached yet
+
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
                     const aBin = document.createElement('a');
-                    aBin.href = 'https://pub-2f7f85fcd49244eeb75f02f0bb9e8cf6.r2.dev/archive.bin';
+                    aBin.href = blobUrl;
                     aBin.download = 'archive.bin';
                     document.body.appendChild(aBin);
                     aBin.click();
                     document.body.removeChild(aBin);
-                    
-                    span.textContent = originalText;
+                    URL.revokeObjectURL(blobUrl);
+
+                    span.textContent = "Offline App";
                     btn.style.pointerEvents = 'auto';
                     btn.style.opacity = '1';
                 }, 800);
 
             } catch (err) {
                 console.error("Failed to download local copy:", err);
-                alert("Failed to download. You can manually download archive.bin and right-click -> 'Save link as' on the page URL.");
-                
-                span.textContent = originalText;
+                alert("Failed to download.");
+                span.textContent = "Offline App";
                 btn.style.pointerEvents = 'auto';
                 btn.style.opacity = '1';
             }
