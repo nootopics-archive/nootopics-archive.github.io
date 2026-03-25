@@ -848,9 +848,13 @@
         }
 
         async function initApp() {
+            if (window.location.protocol === 'file:') {
+                showDragAndDropUI();
+                return;
+            }
+
             try {
                 const binUrl = 'https://pub-2f7f85fcd49244eeb75f02f0bb9e8cf6.r2.dev/archive.bin';
-                // Bump to v7 to clear out the compressed cache from our previous test
                 const cacheName = 'discord-archive-v7'; 
                 let response = null;
                 let cache = null;
