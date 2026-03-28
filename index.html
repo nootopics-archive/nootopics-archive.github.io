@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>NooTopics 3.0 Archive</title>
     <style>
         :root { --bg-primary: #313338; --bg-secondary: #2b2d31; --bg-hover: #2e3035; --bg-active: #404249; --text-normal: #dbdee1; --text-muted: #949ba4; --brand: #5865F2; --danger: #da373c; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'gg sans', sans-serif; background: var(--bg-primary); color: var(--text-normal); height: 100vh; overflow: hidden; display: flex; }
+        body { font-family: 'gg sans', sans-serif; background: var(--bg-primary); color: var(--text-normal); height: 100vh; overflow: hidden; display: flex; -webkit-tap-highlight-color: transparent; }
         #app-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; font-size: 1.2rem; }
         .spinner { margin-bottom: 16px; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--brand); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -29,24 +29,37 @@
         .drop-zone { border: 2px dashed #4e5058; border-radius: 8px; padding: 40px; text-align: center; background: var(--bg-secondary); max-width: 500px; transition: all 0.2s ease; }
         .drop-zone.active { border-color: var(--brand); background: rgba(88, 101, 242, 0.1); }
         
-        #sidebar { width: 280px; background: var(--bg-secondary); display: flex; flex-direction: column; z-index: 10; }
+        /* Mobile Overlay */
+        #mobile-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 20;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        #mobile-overlay.active { opacity: 1; pointer-events: auto; }
+
+        #sidebar { width: 280px; background: var(--bg-secondary); display: flex; flex-direction: column; z-index: 30; flex-shrink: 0; }
         #sidebar-scroll { flex: 1; overflow-y: auto; }
         .category { padding: 18px 8px 4px 16px; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
         .channel-btn { margin: 2px 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; }
         .channel-btn:hover { background: var(--bg-hover); color: var(--text-normal); }
         .channel-btn.active { background: var(--bg-active); color: #fff; }
         .channel-btn::before { content: '#'; margin-right: 6px; font-size: 1.2em; color: #80848e; }
-        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+        
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
         #header { height: 48px; border-bottom: 1px solid #1e1f22; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-weight: 600; }
+        
+        #mobile-menu-btn { display: none; background: transparent; color: var(--text-normal); padding: 4px; border: none; cursor: pointer; }
+        
         .header-controls { display: flex; gap: 12px; align-items: center; }
         .search-container { display: flex; align-items: center; background: #1e1f22; border-radius: 4px; padding: 2px 6px; min-width: 250px; }
-        #search-input { flex: 1; height: 26px; background: transparent; border: none; outline: none; color: var(--text-normal); font-family: inherit; font-size: 14px; padding: 0 6px; }
+        #search-input { flex: 1; height: 26px; background: transparent; border: none; outline: none; color: var(--text-normal); font-family: inherit; font-size: 14px; padding: 0 6px; width: 100%; }
         #search-input::placeholder { color: #949ba4; }
         button { background: var(--brand); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 500; }
         button.active { background: var(--danger); }
+        
         #messages-viewport { flex: 1; overflow-y: auto; position: relative; padding-bottom: 20px; }
         #message-list { display: flex; flex-direction: column; }
-        .msg { display: flex; padding: 2px 48px 2px 72px; position: relative; margin-top: 17px; }
+        .msg { display: flex; padding: 2px 48px 2px 72px; position: relative; margin-top: 17px; -webkit-touch-callout: none; }
         .msg.grouped { margin-top: 0; }
         .msg:hover { background: var(--bg-hover); }
         .msg.highlight { background-color: rgba(88, 101, 242, 0.4); transition: background-color 0s; }
@@ -66,7 +79,7 @@
         .search-result-avatar { position: relative; width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
         .avatar-wrapper { overflow: hidden; }
         .avatar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-        .msg-content { display: flex; flex-direction: column; width: 100%; }
+        .msg-content { display: flex; flex-direction: column; width: 100%; min-width: 0; }
         .msg-header { display: flex; align-items: baseline; margin-bottom: 2px; }
         .name { font-weight: 500; margin-right: 0.3rem; }
         .time { font-size: 0.75rem; color: var(--text-muted); margin-left: 0.25rem; }
@@ -79,7 +92,8 @@
         .reply-author { font-weight: 500; margin-right: 4px; opacity: 0.8; white-space: nowrap; }
         .reply-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw; }
 
-        #search-sidebar { width: 400px; background: var(--bg-secondary); border-left: 1px solid #1e1f22; display: none; flex-direction: column; z-index: 10; }
+        #search-sidebar { width: 400px; background: var(--bg-secondary); border-left: 1px solid #1e1f22; display: none; flex-direction: column; z-index: 30; }
+        #search-sidebar.active { display: flex; }
         #search-header { padding: 16px; font-weight: 600; border-bottom: 1px solid #1e1f22; display: flex; justify-content: space-between; }
         #search-results { flex: 1; overflow-y: auto; padding: 12px; }
         .search-result-item { background: var(--bg-primary); padding: 12px; border-radius: 8px; margin-bottom: 12px; cursor: pointer; }
@@ -90,6 +104,7 @@
         .search-result-text { font-size: 0.9em; color: var(--text-normal); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; margin-left: 32px; }
         .search-result-channel { font-size: 0.75em; color: var(--text-muted); margin-top: 8px; font-weight: 600; }
         .empty-state { text-align: center; color: var(--text-muted); margin-top: 40px; font-style: italic; }
+        
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
         .mention { color: #c9cdfb; background: rgba(88,101,242,0.3); padding: 0 4px; border-radius: 3px; font-weight: 500; }
@@ -106,6 +121,7 @@
         .showing-pins .msg { background-color: rgba(250, 166, 26, 0.1); }
         .showing-pins .msg:hover { background-color: rgba(250, 166, 26, 0.15); }
         .showing-pins .msg::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background-color: #faa61a; }
+        
         #sidebar-footer { padding: 12px; background: #232428; flex-shrink: 0; }
         #download-local-btn { 
             display: flex; align-items: center; justify-content: center; gap: 8px; 
@@ -116,10 +132,79 @@
         }
         #download-local-btn:hover { background: var(--brand); color: #fff; }
         #download-local-btn svg { flex-shrink: 0; }
+
+        /* --- MOBILE CONTEXT MENU --- */
+        #mobile-context-menu {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 99999;
+            display: flex; flex-direction: column; justify-content: flex-end;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+        }
+        #mobile-context-menu.active { opacity: 1; pointer-events: auto; }
+        .context-menu-content {
+            background: #1e1f22; border-radius: 16px 16px 0 0;
+            padding: 16px 16px 32px 16px; transform: translateY(100%); 
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        #mobile-context-menu.active .context-menu-content { transform: translateY(0); }
+        .ctx-btn {
+            background: #2b2d31; color: var(--text-normal);
+            padding: 16px; border-radius: 8px; font-size: 16px; font-weight: 500;
+            text-align: center; border: none; width: 100%; cursor: pointer;
+        }
+        .ctx-btn:active { background: #313338; }
+        .ctx-btn.cancel { background: var(--danger); color: white; margin-top: 8px; }
+
+        /* --- MOBILE RESPONSIVE STYLES --- */
+        @media (max-width: 768px) {
+            #sidebar {
+                position: fixed; left: 0; top: 0; bottom: 0; height: 100%;
+                transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 2px 0 8px rgba(0,0,0,0.5);
+            }
+            #sidebar.active { transform: translateX(0); }
+            
+            #search-sidebar {
+                position: fixed; right: 0; top: 0; bottom: 0; height: 100%;
+                width: 100%; max-width: 400px;
+                display: flex; /* Override display:none to allow transform animation */
+                transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: -2px 0 8px rgba(0,0,0,0.5);
+            }
+            #search-sidebar.active { transform: translateX(0); }
+
+            #mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
+            #header { padding: 0 8px; }
+            #header-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+            
+            .header-controls { gap: 6px; }
+            .search-container { min-width: 100px; width: 140px; }
+            
+            .msg { padding: 2px 12px 2px 52px; }
+            .avatar { left: 8px; width: 36px; height: 36px; }
+            .msg.has-reply .avatar { top: 22px; }
+            .reply-spine { left: -32px; width: 28px; }
+
+            .drop-zone { width: 90%; padding: 20px; }
+        }
     </style>
 </head>
 <body>
     <div id="app-loader"><div class="spinner"></div><div id="loader-text">Initializing...</div></div>
+    
+    <!-- Mobile Overlay Backdrop -->
+    <div id="mobile-overlay"></div>
+
+    <!-- Mobile Context Menu -->
+    <div id="mobile-context-menu">
+        <div class="context-menu-content">
+            <button class="ctx-btn" id="ctx-copy-text">Copy Text</button>
+            <button class="ctx-btn" id="ctx-copy-link">Copy Link</button>
+            <button class="ctx-btn cancel" id="ctx-cancel">Cancel</button>
+        </div>
+    </div>
+
     <div id="sidebar">
         <div id="sidebar-scroll"></div>
         <div id="sidebar-footer">
@@ -135,7 +220,12 @@
     </div>
     <div id="main">
         <div id="header">
-            <div id="header-title">Select a channel</div>
+            <div style="display: flex; align-items: center; gap: 12px; overflow: hidden;">
+                <button id="mobile-menu-btn" title="Open Menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div id="header-title">Select a channel</div>
+            </div>
             <div class="header-controls">
                 <button id="toggle-pins" style="display: none; background: var(--brand); padding: 6px 8px;" title="Toggle Pins">📌</button>
                 <button id="search-scope-toggle" style="background: var(--danger); padding: 6px 8px;" title="Toggle Global/Channel Search">🌐</button>
@@ -148,7 +238,7 @@
         <div id="messages-viewport"><div id="message-list"><div class="empty-state">Select a channel from the sidebar.</div></div></div>
     </div>
     <div id="search-sidebar">
-        <div id="search-header"><span id="search-result-count">Search Results</span><button onclick="closeSearch()" style="background: transparent; color: var(--text-muted);">✖</button></div>
+        <div id="search-header"><span id="search-result-count">Search Results</span><button onclick="closeSearch()" style="background: transparent; color: var(--text-muted); cursor: pointer; border: none; font-size: 16px;">✖</button></div>
         <div id="search-results"></div>
     </div>
 
@@ -614,14 +704,131 @@
         let currentSearchEndIdx = 0;
         const SEARCH_PAGE_SIZE = 50;
 
+        // --- GLOBAL TOAST UTILITY ---
+        window.showToast = function(message) {
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--brand);color:white;padding:10px 20px;border-radius:4px;z-index:100000;box-shadow:0 4px 12px rgba(0,0,0,0.2);font-weight:500;";
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        };
+
+        // --- MOBILE UI LOGIC ---
+        const mobileOverlay = document.getElementById('mobile-overlay');
+        const sidebar = document.getElementById('sidebar');
+        const searchSidebar = document.getElementById('search-sidebar');
+
+        document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+            sidebar.classList.add('active');
+            mobileOverlay.classList.add('active');
+        });
+
+        mobileOverlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            closeSearch();
+        });
+
+        window.closeSearch = () => {
+            searchSidebar.classList.remove('active');
+            mobileOverlay.classList.remove('active');
+        };
+
+        // --- MOBILE LONG PRESS CONTEXT MENU ---
+        let touchTimer = null;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let currentCtxMsg = null;
+        const LONG_PRESS_DURATION = 400; // ms
+
+        const ctxMenu = document.getElementById('mobile-context-menu');
+        
+        function hideMobileContextMenu() {
+            ctxMenu.classList.remove('active');
+            currentCtxMsg = null;
+        }
+
+        document.getElementById('message-list').addEventListener('touchstart', (e) => {
+            if (window.innerWidth > 768) return; // Only apply on mobile
+            
+            const msgEl = e.target.closest('.msg');
+            if (!msgEl) return;
+
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+
+            touchTimer = setTimeout(() => {
+                currentCtxMsg = msgEl;
+                if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+                ctxMenu.classList.add('active');
+                touchTimer = null;
+            }, LONG_PRESS_DURATION);
+        }, { passive: true });
+
+        document.getElementById('message-list').addEventListener('touchmove', (e) => {
+            if (!touchTimer) return;
+            const touch = e.touches[0];
+            // Cancel long press if user scrolls
+            if (Math.abs(touch.clientX - touchStartX) > 10 || Math.abs(touch.clientY - touchStartY) > 10) {
+                clearTimeout(touchTimer);
+                touchTimer = null;
+            }
+        }, { passive: true });
+
+        const cancelTouch = () => {
+            if (touchTimer) {
+                clearTimeout(touchTimer);
+                touchTimer = null;
+            }
+        };
+
+        document.getElementById('message-list').addEventListener('touchend', cancelTouch);
+        document.getElementById('message-list').addEventListener('touchcancel', cancelTouch);
+
+        // Context menu actions
+        ctxMenu.addEventListener('click', (e) => {
+            if (e.target.id === 'mobile-context-menu') hideMobileContextMenu();
+        });
+        document.getElementById('ctx-cancel').addEventListener('click', hideMobileContextMenu);
+
+        document.getElementById('ctx-copy-text').addEventListener('click', () => {
+            if (currentCtxMsg) {
+                const textEl = currentCtxMsg.querySelector('.text');
+                if (textEl) {
+                    navigator.clipboard.writeText(textEl.innerText).then(() => showToast("Text copied!"));
+                }
+            }
+            hideMobileContextMenu();
+        });
+
+        document.getElementById('ctx-copy-link').addEventListener('click', () => {
+            if (currentCtxMsg) {
+                const actionBtn = currentCtxMsg.querySelector('.msg-actions');
+                if (actionBtn && actionBtn.getAttribute('onclick')) {
+                    // Extract IDs from onclick="copyLink('cId', 'mId')"
+                    const match = actionBtn.getAttribute('onclick').match(/copyLink\(['"]([^'"]+)['"],\s*['"]([^'"]+)['"]\)/);
+                    if (match) {
+                        copyLink(match[1], match[2]);
+                    }
+                } else {
+                    showToast("Could not find link");
+                }
+            }
+            hideMobileContextMenu();
+        });
+
+        // --- SEARCH LOGIC ---
         function performSearch() {
             const query = searchInput.value.trim();
             if (!query) {
-                document.getElementById('search-sidebar').style.display = 'none';
+                closeSearch();
                 return;
             }
             
-            document.getElementById('search-sidebar').style.display = 'flex';
+            searchSidebar.classList.add('active');
+            if (window.innerWidth <= 768) {
+                mobileOverlay.classList.add('active');
+            }
             
             totalSearchResults = wasm_bindgen.execute_search(query, searchGlobal, currentChannelId || "");
             
@@ -673,7 +880,7 @@
             searchGlobal = !searchGlobal;
             e.target.textContent = searchGlobal ? '🌐' : '#';
             e.target.style.background = searchGlobal ? 'var(--danger)' : 'var(--brand)';
-            if (document.getElementById('search-sidebar').style.display === 'flex') {
+            if (searchSidebar.classList.contains('active')) {
                 performSearch();
             }
         });
@@ -996,6 +1203,12 @@
             currentChannelId = id;
             showingPins = false;
             
+            // Close mobile sidebars if open
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('active');
+                mobileOverlay.classList.remove('active');
+            }
+            
             document.getElementById('message-list').classList.remove('showing-pins');
             
             document.querySelectorAll('.channel-btn').forEach(el => el.classList.remove('active'));
@@ -1085,6 +1298,11 @@
         window.jumpToMessage = function(cId, globalIdx) {
             if (currentChannelId !== cId) selectChannel(cId);
             
+            // Auto close search sidebar on mobile when jumping to a message
+            if (window.innerWidth <= 768) {
+                closeSearch();
+            }
+            
             showingPins = false;
             document.getElementById('message-list').classList.remove('showing-pins');
             const pinBtn = document.getElementById('toggle-pins');
@@ -1120,19 +1338,13 @@
             }
         };
 
-        window.closeSearch = () => document.getElementById('search-sidebar').style.display = 'none';
-
         window.copyLink = function(channelId, messageId) {
             const url = new URL(window.location.href);
             url.searchParams.set('c', channelId);
             url.searchParams.set('m', messageId);
             
             navigator.clipboard.writeText(url.toString()).then(() => {
-                const toast = document.createElement('div');
-                toast.textContent = "Copied local archive link!";
-                toast.style.cssText = "position:fixed;bottom:20px;right:20px;background:var(--brand);color:white;padding:10px 20px;border-radius:4px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.2);";
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 2000);
+                showToast("Copied local archive link!");
             }).catch(err => console.error('Failed to copy link: ', err));
         };
         
