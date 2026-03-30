@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NooTopics 3.0 Archive</title>
+    <style>
+        :root { --bg-primary: #313338; --bg-secondary: #2b2d31; --bg-hover: #2e3035; --bg-active: #404249; --text-normal: #dbdee1; --text-muted: #949ba4; --brand: #5865F2; --danger: #da373c; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        html, body { height: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; }
+        
+        body { font-family: 'gg sans', sans-serif; background: var(--bg-primary); color: var(--text-normal); display: flex; -webkit-tap-highlight-color: transparent; }
+        
+        #app-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-primary); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; font-size: 1.2rem; }
+        .spinner { margin-bottom: 16px; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--brand); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        #progress-wrap { width: 320px; background: #1e1f22; border-radius: 999px; height: 6px; margin-top: 16px; overflow: hidden; }
+        #progress-bar { height: 100%; width: 0%; background: var(--brand); border-radius: 999px; transition: width 0.15s ease; }
+        #progress-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 8px; letter-spacing: 0.02em; }
+        
+        .drop-zone { border: 2px dashed #4e5058; border-radius: 8px; padding: 40px; text-align: center; background: var(--bg-secondary); max-width: 500px; transition: all 0.2s ease; }
+        .drop-zone.active { border-color: var(--brand); background: rgba(88, 101, 242, 0.1); }
+        
+        #mobile-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        #mobile-overlay.active { opacity: 1; pointer-events: auto; }
+
+        #sidebar { width: 280px; background: var(--bg-secondary); display: flex; flex-direction: column; z-index: 30; flex-shrink: 0; }
+        #sidebar-scroll { flex: 1; overflow-y: auto; }
+        .category { padding: 18px 8px 4px 16px; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+        .channel-btn { margin: 2px 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; }
+        .channel-btn:hover { background: var(--bg-hover); color: var(--text-normal); }
+        .channel-btn.active { background: var(--bg-active); color: #fff; }
+        .channel-btn::before { content: '#'; margin-right: 6px; font-size: 1.2em; color: #80848e; }
+        
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+        #header { height: 48px; border-bottom: 1px solid #1e1f22; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-weight: 600; flex-shrink: 0; }
+        
+        #mobile-menu-btn { display: none; background: transparent; color: var(--text-normal); padding: 4px; border: none; cursor: pointer; }
+        
+        .header-controls { display: flex; gap: 12px; align-items: center; }
+        .search-container { display: flex; align-items: center; background: #1e1f22; border-radius: 4px; padding: 2px 6px; min-width: 250px; }
+        #search-input { flex: 1; height: 26px; background: transparent; border: none; outline: none; color: var(--text-normal); font-family: inherit; font-size: 14px; padding: 0 6px; width: 100%; }
+        #search-input::placeholder { color: #949ba4; }
+        button { background: var(--brand); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 500; }
+        button.active { background: var(--danger); }
+        
+        #messages-viewport { flex: 1; overflow-y: auto; position: relative; padding-bottom: 20px; }
+        #message-list { display: flex; flex-direction: column; }
+        .msg { display: flex; padding: 2px 48px 2px 72px; position: relative; margin-top: 17px; -webkit-touch-callout: none; }
+        .msg.grouped { margin-top: 0; }
+        .msg:hover { background: var(--bg-hover); }
+        .msg.highlight { background-color: rgba(88, 101, 242, 0.4); transition: background-color 0s; }
+        
+        .msg-actions { display: none; cursor: pointer; font-size: 0.75rem; color: var(--brand); margin-left: 12px; font-weight: 600; }
+        .msg:hover .msg-actions { display: inline-block; }
+        .msg-actions:hover { text-decoration: underline; }
+
+        .grouped-actions { position: absolute; right: 16px; top: -8px; background: var(--bg-primary); padding: 2px 8px; border-radius: 4px; border: 1px solid #1e1f22; font-size: 12px; z-index: 5; }
+        
+        .msg-timestamp-hover { display: none; position: absolute; left: 0; width: 56px; text-align: right; font-size: 0.68rem; color: var(--text-muted); line-height: 1.375rem; }
+        .msg.grouped:hover .msg-timestamp-hover { display: inline-block; }
+        
+        .avatar { position: absolute; left: 16px; top: 2px; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; z-index: 1; }
+        .msg.has-reply .avatar { top: 24px; }
+        
+        .search-result-avatar { position: relative; width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+        .avatar-wrapper { overflow: hidden; }
+        .avatar-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+        .msg-content { display: flex; flex-direction: column; width: 100%; min-width: 0; }
+        .msg-header { display: flex; align-items: baseline; margin-bottom: 2px; }
+        .name { font-weight: 500; margin-right: 0.3rem; }
+        .time { font-size: 0.75rem; color: var(--text-muted); margin-left: 0.25rem; }
+        .text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.375rem; color: var(--text-normal); }
+        
+        .replied-message { position: relative; display: flex; align-items: center; font-size: 0.875rem; color: var(--text-muted); cursor: pointer; margin-bottom: 4px; user-select: none; }
+        .replied-message:hover .reply-text { color: var(--text-normal); }
+        .reply-spine { position: absolute; left: -36px; top: 50%; width: 32px; height: 20px; border-left: 2px solid #4e5058; border-top: 2px solid #4e5058; border-top-left-radius: 6px; box-sizing: border-box; }
+        .reply-avatar { position: relative; width: 16px; height: 16px; border-radius: 50%; margin-right: 4px; object-fit: cover; flex-shrink: 0; }
+        .reply-author { font-weight: 500; margin-right: 4px; opacity: 0.8; white-space: nowrap; }
+        .reply-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw; }
+
+        #search-sidebar { width: 400px; background: var(--bg-secondary); border-left: 1px solid #1e1f22; display: none; flex-direction: column; z-index: 30; }
+        #search-sidebar.active { display: flex; }
+        #search-header { padding: 16px; font-weight: 600; border-bottom: 1px solid #1e1f22; display: flex; justify-content: space-between; align-items: center; }
+        #search-results { flex: 1; overflow-y: auto; padding: 12px; }
+        .search-result-item { background: var(--bg-primary); padding: 12px; border-radius: 8px; margin-bottom: 12px; cursor: pointer; }
+        .search-result-header { display: flex; align-items: center; margin-bottom: 8px; gap: 8px; }
+        .search-result-meta { display: flex; align-items: baseline; gap: 6px; }
+        .search-result-name { font-weight: 500; font-size: 0.95em; }
+        .search-result-time { font-size: 0.75em; color: var(--text-muted); }
+        .search-result-text { font-size: 0.9em; color: var(--text-normal); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; margin-left: 32px; }
+        .search-result-channel { font-size: 0.75em; color: var(--text-muted); margin-top: 8px; font-weight: 600; }
+        .empty-state { text-align: center; color: var(--text-muted); margin-top: 40px; font-style: italic; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
+        .mention { color: #c9cdfb; background: rgba(88,101,242,0.3); padding: 0 4px; border-radius: 3px; font-weight: 500; }
+        .link { color: #00a8fc; text-decoration: none; }
+        .link:hover { text-decoration: underline; }
+
+        .blockquote { border-left: 4px solid #4e5058; padding-left: 12px; margin: 2px 0; border-radius: 2px; }
+
+        .showing-pins .msg { background-color: rgba(250, 166, 26, 0.1); }
+        .showing-pins .msg:hover { background-color: rgba(250, 166, 26, 0.15); }
+        .showing-pins .msg::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background-color: #faa61a; }
+        
+        #sidebar-footer { padding: 12px; background: #232428; flex-shrink: 0; }
+        #download-local-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; background: #1e1f22; color: var(--text-normal); border: 1px solid #1e1f22; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background 0.2s, color 0.2s; }
+        #download-local-btn:hover { background: var(--brand); color: #fff; }
+        #download-local-btn svg { flex-shrink: 0; }
+
+        /* --- MOBILE CONTEXT MENU --- */
+        #mobile-context-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 99999; display: flex; flex-direction: column; justify-content: flex-end; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+        #mobile-context-menu.active { opacity: 1; pointer-events: auto; }
+        .context-menu-content { background: #1e1f22; border-radius: 16px 16px 0 0; padding: 16px 16px 32px 16px; transform: translateY(100%); transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; gap: 8px; }
+        #mobile-context-menu.active .context-menu-content { transform: translateY(0); }
+        .ctx-btn { background: #2b2d31; color: var(--text-normal); padding: 16px; border-radius: 8px; font-size: 16px; font-weight: 500; text-align: center; border: none; width: 100%; cursor: pointer; }
+        .ctx-btn:active { background: #313338; }
+        .ctx-btn.cancel { background: var(--danger); color: white; margin-top: 8px; }
+
+        /* --- STATS MODAL --- */
+        #stats-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 99999; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+        #stats-modal-overlay.active { opacity: 1; pointer-events: auto; }
+        #stats-modal { 
+            background: var(--bg-primary); 
+            width: 95%; 
+            max-width: 1000px; /* Increased from 700px to fit the full year */
+            height: 80vh; 
+            max-height: 800px; 
+            border-radius: 8px; 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5); 
+            overflow: hidden; 
+        }
+        .stats-header { padding: 16px 20px; border-bottom: 1px solid #1e1f22; display: flex; justify-content: space-between; align-items: center; font-size: 1.2rem; font-weight: 600; background: var(--bg-secondary); }
+        .stats-header button { background: transparent; color: var(--text-muted); font-size: 1.2rem; padding: 0; }
+        .stats-header button:hover { color: var(--text-normal); }
+        .stats-tabs { display: flex; border-bottom: 1px solid #1e1f22; background: var(--bg-secondary); }
+        .tab-btn { flex: 1; background: transparent; color: var(--text-muted); border-radius: 0; padding: 12px; font-weight: 600; transition: color 0.2s, background 0.2s; }
+        .tab-btn.active { color: var(--text-normal); border-bottom: 2px solid var(--brand); background: var(--bg-primary); }
+        .stats-content { flex: 1; overflow: hidden; position: relative; }
+        .tab-pane { display: none; height: 100%; flex-direction: column; }
+        .tab-pane.active { display: flex; }
+        
+        /* Leaderboard Tab */
+        #lb-list { flex: 1; overflow-y: auto; padding: 10px 0; }
+        .lb-item { display: flex; align-items: center; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .lb-item:hover { background: var(--bg-hover); }
+        .lb-rank { width: 40px; font-weight: bold; color: var(--text-muted); font-size: 0.9rem; }
+        
+        /* FIX: Added position: relative and flex-shrink: 0 to contain the absolute image */
+        .lb-avatar { position: relative; width: 32px; height: 32px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
+        
+        .lb-name { flex: 1; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1rem; }
+        .lb-count { font-weight: bold; color: var(--brand); font-size: 1rem; }
+
+        /* Heatmap Tab */
+        #tab-heatmap { padding: 20px; align-items: center; }
+        .hm-controls { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+        .hm-controls button { background: var(--bg-secondary); color: var(--text-normal); padding: 6px 16px; border-radius: 4px; }
+        .hm-controls button:hover { background: var(--bg-hover); }
+        .hm-controls span { font-size: 1.2rem; font-weight: bold; min-width: 60px; text-align: center; }
+        .hm-wrapper { width: 100%; overflow-x: auto; padding-bottom: 16px; display: flex; justify-content: center; }
+        #hm-grid { display: grid; grid-template-rows: repeat(7, 14px); grid-auto-flow: column; gap: 4px; width: max-content; }
+        
+        /* Updated Heatmap Cells */
+        .hm-cell { width: 14px; height: 14px; border-radius: 3px; cursor: pointer; transition: transform 0.1s; }
+        .hm-cell:hover { transform: scale(1.2); z-index: 10; border: 1px solid rgba(255,255,255,0.5); }
+        .hm-cell.hidden-cell { background: transparent; cursor: default; pointer-events: none; }
+        .hm-cell.empty-cell { background: rgba(255,255,255,0.05); cursor: default; }
+        
+        /* Continuous Legend */
+        .hm-legend { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; }
+        .hm-legend-bar { width: 200px; height: 12px; border-radius: 6px; background: linear-gradient(to right, rgb(68,1,84), rgb(59,82,139), rgb(33,145,140), rgb(94,201,98), rgb(253,231,37)); }
+
+        /* --- MOBILE RESPONSIVE STYLES --- */
+        @media (max-width: 768px) {
+            #sidebar { position: fixed; left: 0; top: 0; bottom: 0; height: 100%; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 2px 0 8px rgba(0,0,0,0.5); }
+            #sidebar.active { transform: translateX(0); }
+            #search-sidebar { position: fixed; right: 0; top: 0; bottom: 0; height: 100%; width: 100%; max-width: 400px; display: flex; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: -2px 0 8px rgba(0,0,0,0.5); }
+            #search-sidebar.active { transform: translateX(0); }
+            #mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
+            #header { padding: 0 8px; }
+            #header-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+            .header-controls { gap: 6px; }
+            .search-container { min-width: 100px; width: 140px; }
+            .msg { padding: 2px 12px 2px 52px; }
+            .avatar { left: 8px; width: 36px; height: 36px; }
+            .msg.has-reply .avatar { top: 22px; }
+            .reply-spine { left: -32px; width: 28px; }
+            .drop-zone { width: 90%; padding: 20px; }
+            #stats-modal { width: 95%; height: 90vh; }
+            .hm-wrapper { justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app-loader"><div class="spinner"></div><div id="loader-text">Initializing...</div></div>
+    
+    <div id="mobile-overlay"></div>
+
+    <div id="mobile-context-menu">
+        <div class="context-menu-content">
+            <button class="ctx-btn" id="ctx-copy-text">Copy Text</button>
+            <button class="ctx-btn" id="ctx-copy-link">Copy Link</button>
+            <button class="ctx-btn cancel" id="ctx-cancel">Cancel</button>
+        </div>
+    </div>
+
+    <!-- STATS MODAL -->
+    <div id="stats-modal-overlay">
+        <div id="stats-modal">
+            <div class="stats-header">
+                <div>Server Stats</div>
+                <button onclick="closeStats()">✖</button>
+            </div>
+            <div class="stats-tabs">
+                <button class="tab-btn active" onclick="switchStatsTab('leaderboard')">Leaderboard</button>
+                <button class="tab-btn" onclick="switchStatsTab('heatmap')">Activity Heatmap</button>
+            </div>
+            <div class="stats-content">
+                <div id="tab-leaderboard" class="tab-pane active">
+                    <div id="lb-list"></div>
+                </div>
+                <div id="tab-heatmap" class="tab-pane">
+                    <div class="hm-controls">
+                        <button onclick="changeYear(-1)">◀</button>
+                        <span id="hm-year-display">2023</span>
+                        <button onclick="changeYear(1)">▶</button>
+                    </div>
+                    <div class="hm-wrapper">
+                        <div id="hm-grid"></div>
+                    </div>
+                    <div class="hm-legend">
+                        Less
+                        <div class="hm-legend-bar"></div>
+                        More
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <div id="sidebar-scroll"></div>
+        <div id="sidebar-footer">
+            <button id="download-local-btn" onclick="downloadLocalCopy()" title="Download Offline App">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Offline App</span>
+            </button>
+        </div>
+    </div>
+    <div id="main">
+        <div id="header">
+            <div style="display: flex; align-items: center; gap: 12px; overflow: hidden;">
+                <button id="mobile-menu-btn" title="Open Menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div id="header-title">Select a channel</div>
+            </div>
+            <div class="header-controls">
+                <button id="stats-btn" onclick="openStats()" style="background: var(--bg-active); padding: 6px 8px;" title="Server Stats">📊</button>
+                <button id="toggle-pins" style="display: none; background: var(--brand); padding: 6px 8px;" title="Toggle Pins">📌</button>
+                <button id="search-scope-toggle" style="background: var(--danger); padding: 6px 8px;" title="Toggle Global/Channel Search">🌐</button>
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Search..." spellcheck="false">
+                    <button id="search-btn">🔍</button>
+                </div>
+            </div>
+        </div>
+        <div id="messages-viewport"><div id="message-list"><div class="empty-state">Select a channel from the sidebar.</div></div></div>
+    </div>
+    <div id="search-sidebar">
+        <div id="search-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="search-result-count">Search Results</span>
+                <button id="copy-all-search-btn" style="display: none; padding: 4px 8px; font-size: 12px; background: #4e5058; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="copyAllSearchResults()">📋 Copy All</button>
+            </div>
+            <button onclick="closeSearch()" style="background: transparent; color: var(--text-muted); cursor: pointer; border: none; font-size: 16px;">✖</button>
+        </div>
+        <div id="search-results"></div>
+    </div>
+
+    <script>
+        // --- INJECTED WASM GLUE ---
+        __WASM_GLUE__
+    </script>
+    <script type="text/plain" id="wasm-b64">__WASM_B64__</script>
+
+    <script>
+        const DEFAULT_PFP_URI = "__DEFAULT_PFP__";
+        const WASM_MARKER = "__DEFAULT" + "_PFP__";
+
+        function processWasmHtml(rawHtml) {
+            return rawHtml.split(WASM_MARKER).join(DEFAULT_PFP_URI);
+        }
+
+        function updateLoaderText(text) {
+            const el = document.getElementById('loader-text');
+            if (el) el.textContent = text;
+        }
+
+        function yieldToBrowser() {
+            return new Promise(resolve => setTimeout(resolve, 10));
+        }
+
+        function decodeBase64Fast(elementId) {
+            const el = document.getElementById(elementId);
+            if (!el) return new Uint8Array(0);
+            const b64 = el.textContent;
+            const binStr = atob(b64);
+            const len = binStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binStr.charCodeAt(i);
+            }
+            return bytes;
+        }
+
+        function formatDates() {
+            document.querySelectorAll('.ts-time').forEach(el => {
+                el.textContent = new Date(Number(el.dataset.ts)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                el.classList.remove('ts-time');
+            });
+            document.querySelectorAll('.ts-full').forEach(el => {
+                el.textContent = new Date(Number(el.dataset.ts)).toLocaleString();
+                el.classList.remove('ts-full');
+            });
+        }
+
+        function formatMentions() {
+            document.querySelectorAll('.text:not([data-formatted]), .search-result-text:not([data-formatted])').forEach(el => {
+                let html = el.innerHTML;
+                html = html.replace(/(https?:\/\/[^\s<]+)/g, match => {
+                    let url = match;
+                    const trailingJunk = /(&quot;|&lt;|&gt;|&#39;|&amp;|\.|,|!|\?)+$/;
+                    let suffix = '';
+                    const m = url.match(trailingJunk);
+                    if (m) { suffix = url.substring(m.index); url = url.substring(0, m.index); }
+                    const discordMatch = url.match(/discord(?:app)?\.com\/channels\/(\d+|@me)\/(\d+)\/(\d+)/);
+                    if (discordMatch) {
+                        return `<a href="?c=${discordMatch[2]}&m=${discordMatch[3]}" onclick="jumpToMessageById('${discordMatch[2]}', '${discordMatch[3]}'); return false;" class="link" style="font-weight:bold;">[Archived Message Link]</a>${suffix}`;
+                    }
+                    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="link">${url}</a>${suffix}`;
+                });
+                html = html.replace(/\b(from:)([a-zA-Z0-9_]+|\d+)\b/gi, '<span class="mention">$&</span>');
+                html = html.replace(/&lt;@!?(\d+)&gt;/g, '<span class="mention">@$1</span>');
+                html = html.replace(/(^|\n)&gt;&gt;&gt; ([\s\S]*)$/, '$1<div class="blockquote">$2</div>');
+                html = html.replace(/(?:^&gt;[ \t]?.*(?:\r?\n|$))+/gm, match => {
+                    let inner = match.replace(/^&gt;[ \t]?/gm, '');
+                    let suffix = inner.endsWith('\n') ? '\n' : '';
+                    if(suffix) inner = inner.replace(/\r?\n$/, '');
+                    return `<div class="blockquote">${inner}</div>${suffix}`;
+                });
+                const tokens = html.split(/(<[^>]+>)/);
+                for (let i = 0; i < tokens.length; i++) {
+                    if (i % 2 === 0) { 
+                        let text = tokens[i];
+                        text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                        text = text.replace(/__(.+?)__/g, '<u>$1</u>');
+                        text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+                        text = text.replace(/(^|\W)_(.+?)_(\W|$)/g, '$1<em>$2</em>$3');
+                        tokens[i] = text;
+                    }
+                }
+                el.innerHTML = tokens.join('');
+                el.dataset.formatted = "true";
+            });
+        }
+
+        const PAGE_SIZE = 100;
+        let currentChannelId = null;
+        let showingPins = false;
+        let searchGlobal = true;
+        let totalMessages = 0;
+        let currentStartIdx = 0;
+        let currentEndIdx = 0;
+
+        const searchInput = document.getElementById('search-input');
+        let totalSearchResults = 0;
+        let currentSearchEndIdx = 0;
+        const SEARCH_PAGE_SIZE = 50;
+
+        window.showToast = function(message) {
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--brand);color:white;padding:10px 20px;border-radius:4px;z-index:100000;box-shadow:0 4px 12px rgba(0,0,0,0.2);font-weight:500;";
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        };
+
+        // --- STATS LOGIC ---
+        let statsComputed = false;
+        let lbEndIdx = 0;
+        const LB_PAGE_SIZE = 100;
+        let hmYears = [];
+        let hmCurrentYearIdx = 0;
+
+        window.openStats = function() {
+            document.getElementById('stats-modal-overlay').classList.add('active');
+            if (!statsComputed) {
+                // Pass local timezone offset to Rust so days align perfectly
+                const tzOffsetMins = new Date().getTimezoneOffset();
+                wasm_bindgen.compute_stats(tzOffsetMins);
+                statsComputed = true;
+                
+                // Init Leaderboard
+                loadMoreLeaderboard();
+                
+                // Init Heatmap
+                hmYears = JSON.parse(wasm_bindgen.get_heatmap_years());
+                if (hmYears.length > 0) {
+                    hmCurrentYearIdx = hmYears.length - 1; // Default to most recent year
+                    renderHeatmap();
+                }
+            }
+        };
+
+        window.closeStats = function() {
+            document.getElementById('stats-modal-overlay').classList.remove('active');
+        };
+
+        window.switchStatsTab = function(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+        };
+
+        function loadMoreLeaderboard() {
+            const lbList = document.getElementById('lb-list');
+            const newEnd = lbEndIdx + LB_PAGE_SIZE - 1;
+            const rawHtml = wasm_bindgen.get_leaderboard_html(lbEndIdx, newEnd);
+            
+            if (rawHtml) {
+                lbList.insertAdjacentHTML('beforeend', processWasmHtml(rawHtml));
+                lbEndIdx = newEnd + 1;
+            }
+        }
+
+        document.getElementById('lb-list').addEventListener('scroll', (e) => {
+            const vp = e.target;
+            if (vp.scrollHeight - vp.scrollTop - vp.clientHeight < 100) {
+                loadMoreLeaderboard();
+            }
+        });
+
+        function renderHeatmap() {
+            if (hmYears.length === 0) return;
+            const year = hmYears[hmCurrentYearIdx];
+            document.getElementById('hm-year-display').textContent = year;
+            
+            const rawHtml = wasm_bindgen.get_heatmap_html(year);
+            const grid = document.getElementById('hm-grid');
+            grid.innerHTML = rawHtml;
+            
+            // Scroll to the end of the year (right side) automatically
+            const wrapper = document.querySelector('.hm-wrapper');
+            wrapper.scrollLeft = wrapper.scrollWidth;
+        }
+
+        window.changeYear = function(delta) {
+            if (hmYears.length === 0) return;
+            const newIdx = hmCurrentYearIdx + delta;
+            if (newIdx >= 0 && newIdx < hmYears.length) {
+                hmCurrentYearIdx = newIdx;
+                renderHeatmap();
+            }
+        };
+
+        // Close modal when clicking outside
+        document.getElementById('stats-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'stats-modal-overlay') closeStats();
+        });
+
+        // --- MOBILE UI LOGIC ---
+        const mobileOverlay = document.getElementById('mobile-overlay');
+        const sidebar = document.getElementById('sidebar');
+        const searchSidebar = document.getElementById('search-sidebar');
+
+        document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+            sidebar.classList.add('active');
+            mobileOverlay.classList.add('active');
+        });
+
+        mobileOverlay.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+            closeSearch();
+        });
+
+        window.closeSearch = () => {
+            searchSidebar.classList.remove('active');
+            mobileOverlay.classList.remove('active');
+        };
+
+        // --- MOBILE LONG PRESS CONTEXT MENU ---
+        let touchTimer = null;
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let currentCtxMsg = null;
+        const LONG_PRESS_DURATION = 400;
+
+        const ctxMenu = document.getElementById('mobile-context-menu');
+        function hideMobileContextMenu() { ctxMenu.classList.remove('active'); currentCtxMsg = null; }
+
+        document.getElementById('message-list').addEventListener('touchstart', (e) => {
+            if (window.innerWidth > 768) return; 
+            const msgEl = e.target.closest('.msg');
+            if (!msgEl) return;
+            const touch = e.touches[0];
+            touchStartX = touch.clientX; touchStartY = touch.clientY;
+            touchTimer = setTimeout(() => {
+                currentCtxMsg = msgEl;
+                if (navigator.vibrate) navigator.vibrate(50);
+                ctxMenu.classList.add('active');
+                touchTimer = null;
+            }, LONG_PRESS_DURATION);
+        }, { passive: true });
+
+        document.getElementById('message-list').addEventListener('touchmove', (e) => {
+            if (!touchTimer) return;
+            const touch = e.touches[0];
+            if (Math.abs(touch.clientX - touchStartX) > 10 || Math.abs(touch.clientY - touchStartY) > 10) {
+                clearTimeout(touchTimer); touchTimer = null;
+            }
+        }, { passive: true });
+
+        const cancelTouch = () => { if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; } };
+        document.getElementById('message-list').addEventListener('touchend', cancelTouch);
+        document.getElementById('message-list').addEventListener('touchcancel', cancelTouch);
+
+        ctxMenu.addEventListener('click', (e) => { if (e.target.id === 'mobile-context-menu') hideMobileContextMenu(); });
+        document.getElementById('ctx-cancel').addEventListener('click', hideMobileContextMenu);
+
+        document.getElementById('ctx-copy-text').addEventListener('click', () => {
+            if (currentCtxMsg) {
+                const textEl = currentCtxMsg.querySelector('.text');
+                if (textEl) navigator.clipboard.writeText(textEl.innerText).then(() => showToast("Text copied!"));
+            }
+            hideMobileContextMenu();
+        });
+
+        document.getElementById('ctx-copy-link').addEventListener('click', () => {
+            if (currentCtxMsg) {
+                const actionBtn = currentCtxMsg.querySelector('.msg-actions');
+                if (actionBtn && actionBtn.getAttribute('onclick')) {
+                    const match = actionBtn.getAttribute('onclick').match(/copyLink\(['"]([^'"]+)['"],\s*['"]([^'"]+)['"]\)/);
+                    if (match) copyLink(match[1], match[2]);
+                } else showToast("Could not find link");
+            }
+            hideMobileContextMenu();
+        });
+
+        // --- SEARCH LOGIC ---
+        function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) { closeSearch(); return; }
+            
+            searchSidebar.classList.add('active');
+            if (window.innerWidth <= 768) mobileOverlay.classList.add('active');
+            
+            totalSearchResults = wasm_bindgen.execute_search(query, searchGlobal, currentChannelId || "");
+            const countText = totalSearchResults === 1 ? "1 result" : `${totalSearchResults} results`;
+            document.getElementById('search-result-count').textContent = countText;
+
+            const resultsContainer = document.getElementById('search-results');
+            const copyBtn = document.getElementById('copy-all-search-btn');
+            
+            if (totalSearchResults === 0) {
+                resultsContainer.innerHTML = '<div class="empty-state">No results found.</div>';
+                copyBtn.style.display = 'none';
+                return;
+            }
+
+            copyBtn.style.display = 'inline-block';
+            currentSearchEndIdx = Math.min(totalSearchResults - 1, SEARCH_PAGE_SIZE - 1);
+            const rawHtml = wasm_bindgen.get_search_results_html(0, currentSearchEndIdx);
+            
+            resultsContainer.innerHTML = processWasmHtml(rawHtml);
+            formatDates(); formatMentions();
+            resultsContainer.scrollTop = 0;
+        }
+
+        window.copyAllSearchResults = function() {
+            if (totalSearchResults === 0) return;
+            const btn = document.getElementById('copy-all-search-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "⏳ Copying..."; btn.style.pointerEvents = "none";
+
+            requestAnimationFrame(() => { requestAnimationFrame(() => {
+                try {
+                    const exportText = wasm_bindgen.export_search_results_text();
+                    navigator.clipboard.writeText(exportText).then(() => showToast(`Copied ${totalSearchResults} results!`))
+                        .catch(err => { console.error('Failed to copy text: ', err); showToast("Failed to copy."); });
+                } catch (err) { console.error("Export failed:", err); showToast("Error generating export."); } 
+                finally { btn.innerHTML = originalText; btn.style.pointerEvents = "auto"; }
+            }); });
+        };
+
+        document.getElementById('search-results').addEventListener('scroll', (e) => {
+            if (totalSearchResults === 0) return;
+            const vp = e.target;
+            if (vp.scrollHeight - vp.scrollTop - vp.clientHeight < 100 && currentSearchEndIdx < totalSearchResults - 1) {
+                const newEnd = Math.min(totalSearchResults - 1, currentSearchEndIdx + SEARCH_PAGE_SIZE);
+                const rawHtml = wasm_bindgen.get_search_results_html(currentSearchEndIdx + 1, newEnd);
+                vp.insertAdjacentHTML('beforeend', processWasmHtml(rawHtml));
+                formatDates(); formatMentions();
+                currentSearchEndIdx = newEnd;
+            }
+        });
+
+        searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); performSearch(); } });
+        document.getElementById('search-btn').addEventListener('click', performSearch);
+        document.getElementById('search-scope-toggle').addEventListener('click', (e) => {
+            searchGlobal = !searchGlobal;
+            e.target.textContent = searchGlobal ? '🌐' : '#';
+            e.target.style.background = searchGlobal ? 'var(--danger)' : 'var(--brand)';
+            if (searchSidebar.classList.contains('active')) performSearch();
+        });
+
+        // --- CORE BOOT LOGIC ---
+        async function bootEngine(uncompressedBuffer, startTime) {
+            updateLoaderText("Loading frontend...");
+            await yieldToBrowser();
+
+            const dataBytes = new Uint8Array(uncompressedBuffer);
+            const tParseStart = performance.now();
+            
+            const wasmBytes = decodeBase64Fast('wasm-b64');
+            const wasmEl = document.getElementById('wasm-b64');
+            if (wasmEl) wasmEl.remove();
+
+            await wasm_bindgen(wasmBytes);
+            wasm_bindgen.init_engine(dataBytes);
+
+            document.getElementById('sidebar-scroll').innerHTML = wasm_bindgen.get_sidebar_html();
+            document.getElementById('app-loader').style.display = 'none';
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const cId = urlParams.get('c');
+            const mId = urlParams.get('m');
+            
+            if (cId) {
+                selectChannel(cId);
+                if (mId) {
+                    const idx = wasm_bindgen.get_msg_global_idx(cId, BigInt(mId));
+                    if (idx >= 0) setTimeout(() => jumpToMessage(cId, idx), 300);
+                }
+            }
+            
+            const tParseEnd = performance.now();
+            console.log(`parse data & generate UI: ${(tParseEnd - tParseStart).toFixed(2)}ms`);
+            console.log(`total: ${(tParseEnd - startTime).toFixed(2)}ms`);
+        }
+
+        function showDragAndDropUI() {
+            const loader = document.getElementById('app-loader');
+            loader.style.display = 'flex'; 
+            loader.innerHTML = `
+                <div id="drop-zone" class="drop-zone">
+                    <div style="font-size: 48px; margin-bottom: 16px;">📁</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 8px;">Local File Mode</div>
+                    <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;">
+                        Please drag and drop your <a href="https://pub-2f7f85fcd49244eeb75f02f0bb9e8cf6.r2.dev/archive.bin" class="link" download>archive.bin</a> file here to view the archive.<br>
+                        <span style="font-size: 0.8rem;">(Alternative mirror: <a href="https://files.catbox.moe/pdjosr.bin" class="link" download>catbox.moe</a>)</span>
+                    </div>
+                    <input type="file" id="file-input" style="display: none;" accept=".bin">
+                    <button id="browse-btn" style="padding: 10px 20px; font-size: 1rem;">Browse for file</button>
+                </div>
+            `;
+            
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            document.getElementById('browse-btn').addEventListener('click', () => fileInput.click());
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+                document.body.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.add('active'), false));
+            ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.remove('active'), false));
+
+            dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files), false);
+            fileInput.addEventListener('change', e => handleFiles(e.target.files), false);
+
+            async function handleFiles(files) {
+                if (files.length === 0) return;
+                const file = files[0];
+                const loader = document.getElementById('app-loader');
+                loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Reading archive...</div>';
+                await yieldToBrowser();
+                
+                try {
+                    const tReadStart = performance.now();
+                    const buffer = await file.arrayBuffer();
+                    const header = new Uint8Array(buffer, 0, 2);
+                    const isGzipped = header[0] === 0x1f && header[1] === 0x8b;
+                    
+                    let uncompressedBuffer;
+                    if (isGzipped) {
+                        loader.innerHTML = '<div class="spinner"></div><div id="loader-text">Decompressing archive...</div>';
+                        await yieldToBrowser();
+                        const stream = new Blob([buffer]).stream();
+                        const decompressor = new DecompressionStream('gzip');
+                        uncompressedBuffer = await new Response(stream.pipeThrough(decompressor)).arrayBuffer();
+                    } else {
+                        uncompressedBuffer = buffer;
+                    }
+                    
+                    await bootEngine(uncompressedBuffer, tReadStart);
+                } catch (err) {
+                    console.error("Failed to boot from local file:", err);
+                    alert("Failed to load archive. Make sure you selected the correct archive.bin file.");
+                    showDragAndDropUI();
+                }
+            }
+        }
+
+        async function downloadLocalCopy() {
+            if (window.location.protocol === 'file:') { alert("You are already using a local copy!"); return; }
+            const btn = document.getElementById('download-local-btn');
+            const span = btn.querySelector('span');
+            btn.style.pointerEvents = 'none'; btn.style.opacity = '0.7'; span.textContent = "Downloading...";
+
+            try {
+                const htmlRes = await fetch(window.location.href);
+                const htmlBlob = new Blob([await htmlRes.text()], { type: 'text/html' });
+                const htmlUrl = URL.createObjectURL(htmlBlob);
+                const aHtml = document.createElement('a'); aHtml.href = htmlUrl; aHtml.download = 'discord-archive-viewer.html';
+                document.body.appendChild(aHtml); aHtml.click(); document.body.removeChild(aHtml); URL.revokeObjectURL(htmlUrl);
+
+                setTimeout(async () => {
+                    const binUrl = 'https://pub-2f7f85fcd49244eeb75f02f0bb9e8cf6.r2.dev/archive.bin';
+                    const cache = await caches.open('discord-archive-v7');
+                    const cached = await cache.match(binUrl);
+                    const response = cached ? cached : await fetch(binUrl);
+                    const blobUrl = URL.createObjectURL(await response.blob());
+                    const aBin = document.createElement('a'); aBin.href = blobUrl; aBin.download = 'archive.bin';
+                    document.body.appendChild(aBin); aBin.click(); document.body.removeChild(aBin); URL.revokeObjectURL(blobUrl);
+
+                    span.textContent = "Offline App"; btn.style.pointerEvents = 'auto'; btn.style.opacity = '1';
+                }, 800);
+            } catch (err) {
+                console.error("Failed to download local copy:", err); alert("Failed to download.");
+                span.textContent = "Offline App"; btn.style.pointerEvents = 'auto'; btn.style.opacity = '1';
+            }
+        }
+
+        async function initApp() {
+            if (window.location.protocol === 'file:') { showDragAndDropUI(); return; }
+            try {
+                const binUrl = 'https://pub-2f7f85fcd49244eeb75f02f0bb9e8cf6.r2.dev/archive.bin';
+                const cacheName = 'discord-archive-v7'; 
+                let response = null; let cache = null;
+                const tFetchStart = performance.now();
+
+                if ('caches' in window) {
+                    try { cache = await caches.open(cacheName); response = await cache.match(binUrl); } 
+                    catch (cacheErr) { console.warn("Cache API unavailable or blocked:", cacheErr); }
+                }
+
+                if (!response) {
+                    document.getElementById('app-loader').innerHTML = `
+                        <div class="spinner"></div><div id="loader-text">Downloading archive...</div>
+                        <div id="progress-wrap"><div id="progress-bar"></div></div><div id="progress-label">0 MB / — MB</div>
+                    `;
+                    await yieldToBrowser();
+
+                    response = await fetch(binUrl);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    
+                    const totalSize = +response.headers.get('Content-Length') || 0;
+                    const reader = response.body.getReader();
+                    const chunks = []; let receivedLength = 0;
+                    const progressBar = document.getElementById('progress-bar');
+                    const progressLabel = document.getElementById('progress-label');
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value); receivedLength += value.length;
+
+                        if (totalSize) {
+                            progressBar.style.width = Math.min((receivedLength / totalSize) * 100, 100).toFixed(1) + '%';
+                            progressLabel.textContent = receivedLength > totalSize 
+                                ? `${(receivedLength / 1e6).toFixed(1)} MB / ? MB`
+                                : `${(receivedLength / 1e6).toFixed(1)} MB / ${(totalSize / 1e6).toFixed(1)} MB`;
+                        } else {
+                            progressLabel.textContent = `${(receivedLength / 1e6).toFixed(1)} MB received...`;
+                        }
+                    }
+
+                    const compressedBytes = new Uint8Array(receivedLength);
+                    let pos = 0; for (const chunk of chunks) { compressedBytes.set(chunk, pos); pos += chunk.length; }
+
+                    updateLoaderText("Decompressing archive...");
+                    await yieldToBrowser();
+
+                    const stream = new Blob([compressedBytes]).stream();
+                    const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+                    const uncompressedBuffer = await new Response(decompressedStream).arrayBuffer();
+
+                    if (cache) {
+                        try { cache.put(binUrl, new Response(uncompressedBuffer, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': uncompressedBuffer.byteLength.toString() } })); } 
+                        catch (e) { console.warn("Failed to save to cache:", e); }
+                    }
+
+                    await bootEngine(uncompressedBuffer, tFetchStart);
+                } else {
+                    updateLoaderText("Loading cached archive...");
+                    await yieldToBrowser();
+                    await bootEngine(await response.arrayBuffer(), tFetchStart);
+                }
+            } catch (e) {
+                console.error("Failed to initialize app from network:", e);
+                showDragAndDropUI();
+            }
+        }
+
+        window.selectChannel = function(id) {
+            currentChannelId = id; showingPins = false;
+            
+            if (window.innerWidth <= 768) { sidebar.classList.remove('active'); mobileOverlay.classList.remove('active'); }
+            
+            document.getElementById('message-list').classList.remove('showing-pins');
+            document.querySelectorAll('.channel-btn').forEach(el => el.classList.remove('active'));
+            let activeBtn = document.getElementById(`ch-${id}`);
+            if(activeBtn) activeBtn.classList.add('active');
+            
+            document.getElementById('header-title').textContent = wasm_bindgen.get_channel_name(id);
+            
+            const pinBtn = document.getElementById('toggle-pins');
+            pinBtn.style.display = 'inline-block'; pinBtn.style.background = 'var(--brand)'; pinBtn.classList.remove('active');
+
+            totalMessages = wasm_bindgen.get_message_count(id, false);
+            if (totalMessages === 0) {
+                document.getElementById('message-list').innerHTML = `<div class="empty-state">No messages found.</div>`;
+                return;
+            }
+
+            currentEndIdx = totalMessages - 1;
+            currentStartIdx = Math.max(0, totalMessages - PAGE_SIZE);
+            
+            const rawHtml = wasm_bindgen.get_messages_html(id, currentStartIdx, currentEndIdx, false);
+            document.getElementById('message-list').innerHTML = processWasmHtml(rawHtml);
+            formatDates(); formatMentions();
+
+            const vp = document.getElementById('messages-viewport');
+            requestAnimationFrame(() => vp.scrollTop = vp.scrollHeight);
+        };
+
+        document.getElementById('messages-viewport').addEventListener('scroll', (e) => {
+            if (showingPins || totalMessages === 0) return;
+            const vp = e.target;
+
+            if (vp.scrollTop < 100 && currentStartIdx > 0) {
+                const newStart = Math.max(0, currentStartIdx - PAGE_SIZE);
+                const rawHtml = wasm_bindgen.get_messages_html(currentChannelId, newStart, currentStartIdx - 1, false);
+                const oldH = vp.scrollHeight; const oldTop = vp.scrollTop;
+                document.getElementById('message-list').insertAdjacentHTML('afterbegin', processWasmHtml(rawHtml));
+                formatDates(); formatMentions();
+                currentStartIdx = newStart; vp.scrollTop = oldTop + (vp.scrollHeight - oldH);
+            }
+
+            if (vp.scrollHeight - vp.scrollTop - vp.clientHeight < 100 && currentEndIdx < totalMessages - 1) {
+                const newEnd = Math.min(totalMessages - 1, currentEndIdx + PAGE_SIZE);
+                const rawHtml = wasm_bindgen.get_messages_html(currentChannelId, currentEndIdx + 1, newEnd, false);
+                document.getElementById('message-list').insertAdjacentHTML('beforeend', processWasmHtml(rawHtml));
+                formatDates(); formatMentions();
+                currentEndIdx = newEnd;
+            }
+        });
+
+        document.getElementById('toggle-pins').addEventListener('click', (e) => {
+            showingPins = !showingPins;
+            e.target.style.background = showingPins ? 'var(--danger)' : 'var(--brand)';
+            e.target.classList.toggle('active', showingPins);
+            
+            const msgList = document.getElementById('message-list');
+            if (showingPins) {
+                msgList.classList.add('showing-pins');
+                const count = wasm_bindgen.get_message_count(currentChannelId, true);
+                const rawHtml = count > 0 ? wasm_bindgen.get_messages_html(currentChannelId, 0, count - 1, true) : `<div class="empty-state">No pinned messages.</div>`;
+                msgList.innerHTML = processWasmHtml(rawHtml);
+            } else {
+                msgList.classList.remove('showing-pins');
+                msgList.innerHTML = processWasmHtml(wasm_bindgen.get_messages_html(currentChannelId, currentStartIdx, currentEndIdx, false));
+            }
+            formatDates(); formatMentions();
+            document.getElementById('messages-viewport').scrollTop = 0;
+        });
+
+        window.jumpToMessage = function(cId, globalIdx) {
+            if (currentChannelId !== cId) selectChannel(cId);
+            if (window.innerWidth <= 768) closeSearch();
+            
+            showingPins = false;
+            document.getElementById('message-list').classList.remove('showing-pins');
+            const pinBtn = document.getElementById('toggle-pins');
+            if (pinBtn) { pinBtn.style.background = 'var(--brand)'; pinBtn.classList.remove('active'); }
+            
+            currentStartIdx = Math.max(0, globalIdx - 50);
+            currentEndIdx = Math.min(totalMessages - 1, currentStartIdx + PAGE_SIZE);
+            
+            document.getElementById('message-list').innerHTML = processWasmHtml(wasm_bindgen.get_messages_html(cId, currentStartIdx, currentEndIdx, false));
+            formatDates(); formatMentions();
+            
+            requestAnimationFrame(() => {
+                const el = document.getElementById(`msg-${globalIdx}`);
+                if (el) {
+                    const vp = document.getElementById('messages-viewport');
+                    vp.scrollTop += (el.getBoundingClientRect().top - vp.getBoundingClientRect().top) - (vp.clientHeight / 2) + (el.getBoundingClientRect().height / 2);
+                    el.classList.add('highlight'); setTimeout(() => el.classList.remove('highlight'), 2500);
+                }
+            });
+        };
+
+        window.jumpToMessageById = function(cId, mId) {
+            const globalIdx = wasm_bindgen.get_msg_global_idx(cId, BigInt(mId));
+            if (globalIdx >= 0) jumpToMessage(cId, globalIdx);
+            else alert("This message or channel is not included in this local archive.");
+        };
+
+        window.copyLink = function(channelId, messageId) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('c', channelId); url.searchParams.set('m', messageId);
+            navigator.clipboard.writeText(url.toString()).then(() => showToast("Copied local archive link!"))
+                .catch(err => console.error('Failed to copy link: ', err));
+        };
+        
+        initApp();
+    </script>
+</body>
+</html>
