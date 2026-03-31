@@ -441,12 +441,17 @@ pub fn get_messages_html(channel_id: &str, start_idx: usize, end_idx: usize, onl
     html
 }
 
+struct ParsedTerm {
+    text: String,
+    req_left: bool,
+    req_right: bool,
+}
+
 #[wasm_bindgen]
 pub fn execute_search(query: &str, global: bool, current_channel: &str) -> usize {
     let archive = ARCHIVE.lock().unwrap();
     let data = archive.as_ref().unwrap();
     
-    let mut query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
     let channels_to_search: Vec<u64> = if global {
@@ -456,29 +461,166 @@ pub fn execute_search(query: &str, global: bool, current_channel: &str) -> usize
         if c_id != 0 { vec![c_id] } else { vec![] }
     };
 
+    // 1. Extract "from:username" safely before parsing operators
+    let mut query_clean = query.to_string();
     let mut target_author = None;
-    if let Some(idx) = query_lower.find("from:") {
-        let after_from = &query_lower[idx + 5..];
+    
+    let q_lower = query_clean.to_lowercase();
+    if let Some(idx) = q_lower.find("from:") {
+        let after_from = &q_lower[idx + 5..];
         let end_idx = after_from.find(' ').unwrap_or(after_from.len());
         target_author = Some(after_from[..end_idx].to_string());
         
-        let remove_str = format!("from:{}", target_author.as_ref().unwrap());
-        query_lower = query_lower.replace(&remove_str, "").trim().to_string();
+        // Remove exactly the "from:user" slice from the original string
+        let remove_str = &query_clean[idx..idx + 5 + end_idx];
+        query_clean = query_clean.replace(remove_str, "");
     }
 
+    // 2. Parse the query into "Blocks" (AND) containing "Terms" (OR)
+    let mut blocks: Vec<Vec<ParsedTerm>> = Vec::new();
+    let mut expect_or = false;
+
+    struct Token {
+        text: String,
+        is_quoted: bool,
+    }
+
+    // Custom Tokenizer to handle quotes for exact phrases
+    let mut tokens = Vec::new();
+    let mut chars = query_clean.chars().peekable();
+
+    while let Some(&c) = chars.peek() {
+        if c.is_whitespace() {
+            chars.next();
+            continue;
+        }
+
+        if c == '"' {
+            chars.next(); // consume opening quote
+            let mut phrase = String::new();
+            while let Some(&nc) = chars.peek() {
+                if nc == '"' {
+                    chars.next(); // consume closing quote
+                    break;
+                }
+                phrase.push(nc);
+                chars.next();
+            }
+            if !phrase.trim().is_empty() {
+                tokens.push(Token { text: phrase, is_quoted: true });
+            }
+        } else {
+            let mut word = String::new();
+            while let Some(&nc) = chars.peek() {
+                if nc.is_whitespace() || nc == '"' {
+                    break;
+                }
+                word.push(nc);
+                chars.next();
+            }
+            if !word.is_empty() {
+                tokens.push(Token { text: word, is_quoted: false });
+            }
+        }
+    }
+
+    // Process tokens into ParsedTerms
+    for token in tokens {
+        if !token.is_quoted {
+            // Explicit uppercase operators (only if unquoted)
+            if token.text == "OR" {
+                expect_or = true;
+                continue;
+            }
+            if token.text == "AND" {
+                continue; // Space is already implicit AND, so we just skip it
+            }
+        }
+
+        let term_lower = token.text.to_lowercase();
+        
+        // Check for wildcards to disable boundaries (e.g. "*exact phrase*")
+        let req_left = !term_lower.starts_with('*');
+        let req_right = !term_lower.ends_with('*');
+        
+        let text = term_lower.trim_matches('*').to_string();
+        if text.is_empty() {
+            continue;
+        }
+
+        let parsed = ParsedTerm { text, req_left, req_right };
+
+        if expect_or {
+            if let Some(last_block) = blocks.last_mut() {
+                last_block.push(parsed);
+            } else {
+                blocks.push(vec![parsed]);
+            }
+            expect_or = false;
+        } else {
+            blocks.push(vec![parsed]);
+        }
+    }
+
+    // 3. Execute the Search
     for c_id in channels_to_search {
         if let Some(msgs) = data.messages.get(&c_id) {
             for (global_idx, msg) in msgs.iter().enumerate() {
-                let user = data.users.get(&msg.a).unwrap();
                 
+                // Check Author
                 if let Some(target) = &target_author {
+                    let user = data.users.get(&msg.a).unwrap();
                     if !user.u.to_lowercase().contains(target) && !msg.a.to_string().contains(target) {
                         continue;
                     }
                 }
 
-                if !query_lower.is_empty() && !msg.c.to_lowercase().contains(&query_lower) {
-                    continue;
+                // Check Text Blocks
+                if !blocks.is_empty() {
+                    let msg_lower = msg.c.to_lowercase();
+                    let mut all_blocks_match = true;
+
+                    for block in &blocks {
+                        let mut block_match = false;
+
+                        for term in block {
+                            // match_indices gives us exact byte offsets to check boundaries safely
+                            for (idx, _) in msg_lower.match_indices(&term.text) {
+                                
+                                let left_ok = if term.req_left {
+                                    // Get the character immediately before the match
+                                    msg_lower[..idx].chars().next_back().map_or(true, |c| !c.is_alphabetic())
+                                } else {
+                                    true
+                                };
+
+                                let right_ok = if term.req_right {
+                                    // Get the character immediately after the match
+                                    msg_lower[idx + term.text.len()..].chars().next().map_or(true, |c| !c.is_alphabetic())
+                                } else {
+                                    true
+                                };
+
+                                if left_ok && right_ok {
+                                    block_match = true;
+                                    break;
+                                }
+                            }
+
+                            if block_match {
+                                break; // Short-circuit the OR logic
+                            }
+                        }
+
+                        if !block_match {
+                            all_blocks_match = false;
+                            break; // Short-circuit the AND logic
+                        }
+                    }
+
+                    if !all_blocks_match {
+                        continue;
+                    }
                 }
 
                 results.push((c_id, global_idx, msg.t));
